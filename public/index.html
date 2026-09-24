@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Leads & Matrículas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-brand-900 via-brand-700 to-brand-600 text-white shadow-lg py-6 px-8 mb-8">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight"><i class="fa-solid fa-users border-2 border-white/20 p-1.5 rounded-lg text-lg me-2"></i> Painel de Leads</h1>
+        <p class="text-brand-100 text-sm mt-1">Colégio Padre João Piamarta - Montese</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="exportCSV()" class="bg-brand-900/40 hover:bg-brand-900/60 border border-white/20 text-white font-semibold px-4 py-2.5 rounded-lg transition duration-200 flex items-center gap-2 text-sm">
+          <i class="fa-solid fa-file-csv text-base"></i> Exportar CSV
+        </button>
+        <button onclick="openModal()" class="bg-white text-brand-700 hover:bg-brand-50 font-semibold px-5 py-2.5 rounded-lg shadow transition duration-200 flex items-center gap-2 text-sm">
+          <i class="fa-solid fa-plus"></i> Novo Cadastro
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-8 pb-12">
+
+    <!-- Busca e Botão de Filtro -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 space-y-4">
+      <div class="flex flex-col sm:flex-row gap-3 items-center">
+        
+        <!-- Campo Texto (Nome/Tel) -->
+        <div class="relative flex-1 w-full">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
+          <input type="text" id="searchInput" oninput="debounceSearch()" placeholder="Buscar aluno, resp. ou telefone..." 
+                 class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+        </div>
+
+        <!-- Botão para Expandir/Ocultar Filtros -->
+        <button onclick="toggleFilterPanel()" id="btnToggleFilter" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-lg transition text-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-filter"></i> Filtros <span id="filterBadge" class="hidden bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">•</span>
+        </button>
+      </div>
+
+      <!-- Painel Retrátil de Filtros -->
+      <div id="filterPanel" class="hidden pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        <!-- Filtro por Status -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrar por Status</label>
+          <select id="filterStatus" onchange="loadLeads()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
+            <option value="">Todos os Status</option>
+            <option value="Novo Lead">Novo Lead</option>
+            <option value="Visita">Visita</option>
+            <option value="Matriculado">Matriculado</option>
+            <option value="Sem Interesse">Sem Interesse</option>
+          </select>
+        </div>
+
+        <!-- Filtro por Série (Dropdown) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrar por Série</label>
+          <select id="filterSerie" onchange="loadLeads()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
+            <option value="">Todas as Séries</option>
+            <option value="Educação Infantil">Educação Infantil</option>
+            <option value="1º Ano - E.F.">1º Ano - E.F.</option>
+            <option value="2º Ano - E.F.">2º Ano - E.F.</option>
+            <option value="3º Ano - E.F.">3º Ano - E.F.</option>
+            <option value="4º Ano - E.F.">4º Ano - E.F.</option>
+            <option value="5º Ano - E.F.">5º Ano - E.F.</option>
+            <option value="6º Ano - E.F.">6º Ano - E.F.</option>
+            <option value="7º Ano - E.F.">7º Ano - E.F.</option>
+            <option value="8º Ano - E.F.">8º Ano - E.F.</option>
+            <option value="9º Ano - E.F.">9º Ano - E.F.</option>
+            <option value="1º Ano - E.M.">1º Ano - E.M.</option>
+            <option value="2º Ano - E.M.">2º Ano - E.M.</option>
+            <option value="3º Ano - E.M.">3º Ano - E.M.</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div id="counter" class="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-2 border-t border-slate-100">
+        Carregando registros...
+      </div>
+    </div>
+
+    <!-- Tabela de Registros -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100/70 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th class="py-3.5 px-4">Aluno</th>
+              <th class="py-3.5 px-4">Responsável</th>
+              <th class="py-3.5 px-4">Telefone</th>
+              <th class="py-3.5 px-4">Série</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="leadTableBody" class="divide-y divide-slate-100 text-sm">
+            <!-- Inserido dinamicamente via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Cadastro/Edição -->
+  <div id="modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-100 relative">
+      <h3 id="modalTitle" class="text-xl font-bold text-slate-800 mb-4">Novo Lead</h3>
+      
+      <form id="leadForm" onsubmit="saveLead(event)" class="space-y-4">
+        <input type="hidden" id="leadId">
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Aluno *</label>
+          <input type="text" id="nome_aluno" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável (Opcional)</label>
+          <input type="text" id="nome_resp" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Telefone (Opcional)</label>
+          <input type="text" id="telefone" placeholder="(00) 00000-0000" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Série como Menu Seleção -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Série (Opcional)</label>
+            <select id="serie" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
+              <option value="">Selecione...</option>
+              <option value="Educação Infantil">Educação Infantil</option>
+              <option value="1º Ano - E.F.">1º Ano - E.F.</option>
+              <option value="2º Ano - E.F.">2º Ano - E.F.</option>
+              <option value="3º Ano - E.F.">3º Ano - E.F.</option>
+              <option value="4º Ano - E.F.">4º Ano - E.F.</option>
+              <option value="5º Ano - E.F.">5º Ano - E.F.</option>
+              <option value="6º Ano - E.F.">6º Ano - E.F.</option>
+              <option value="7º Ano - E.F.">7º Ano - E.F.</option>
+              <option value="8º Ano - E.F.">8º Ano - E.F.</option>
+              <option value="9º Ano - E.F.">9º Ano - E.F.</option>
+              <option value="1º Ano - E.M.">1º Ano - E.M.</option>
+              <option value="2º Ano - E.M.">2º Ano - E.M.</option>
+              <option value="3º Ano - E.M.">3º Ano - E.M.</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+            <select id="status" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
+              <option value="Novo Lead">Novo Lead</option>
+              <option value="Visita">Visita</option>
+              <option value="Matriculado">Matriculado</option>
+              <option value="Sem Interesse">Sem Interesse</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium shadow">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Visualização -->
+  <div id="viewModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-100 relative">
+      <h3 class="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Detalhes do Lead</h3>
+      <div id="viewContent" class="space-y-3 text-sm text-slate-700"></div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="closeViewModal()" class="px-4 py-2 text-sm bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-800 font-medium">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let searchTimeout = null;
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    function toggleFilterPanel() {
+      const panel = document.getElementById('filterPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    async function loadLeads() {
+      try {
+        const query = document.getElementById('searchInput').value;
+        const status = document.getElementById('filterStatus').value;
+        const serie = document.getElementById('filterSerie').value;
+
+        // Ativa um indicador visual no botão caso algum filtro esteja selecionado
+        const badge = document.getElementById('filterBadge');
+        if (status || serie) {
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+
+        const url = `/api/leads?search=${encodeURIComponent(query)}&status=${encodeURIComponent(status)}&serie=${encodeURIComponent(serie)}`;
+        const response = await fetch(url);
+        const leads = await response.json();
+        
+        const tbody = document.getElementById('leadTableBody');
+        tbody.innerHTML = '';
+
+        document.getElementById('counter').innerText = `${leads.length} registro(s) encontrado(s)`;
+
+        if (leads.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400">Nenhum registro encontrado com estes filtros.</td></tr>`;
+          return;
+        }
+
+        leads.forEach(lead => {
+          const statusBadge = getStatusBadge(lead.status);
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-slate-50 transition-colors';
+          row.innerHTML = `
+            <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(lead.nome_aluno)}</td>
+            <td class="py-3 px-4">${escapeHtml(lead.nome_resp || '-')}</td>
+            <td class="py-3 px-4 font-mono text-xs">${escapeHtml(lead.telefone || '-')}</td>
+            <td class="py-3 px-4">${escapeHtml(lead.serie || '-')}</td>
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4 text-center">
+              <div class="flex justify-center items-center gap-2">
+                <button onclick='viewLead(${JSON.stringify(lead)})' title="Visualizar" class="p-1.5 text-slate-500 hover:text-brand-600 rounded">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+                <button onclick='editLead(${JSON.stringify(lead)})' title="Editar" class="p-1.5 text-slate-500 hover:text-amber-600 rounded">
+                  <i class="fa-regular fa-pen-to-square"></i>
+                </button>
+                <button onclick="deleteLead(${lead.id})" title="Excluir" class="p-1.5 text-slate-500 hover:text-red-600 rounded">
+                  <i class="fa-regular fa-trash-can"></i>
+                </button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (err) {
+        console.error("Erro ao carregar dados", err);
+      }
+    }
+
+    function exportCSV() {
+      const query = document.getElementById('searchInput').value;
+      const status = document.getElementById('filterStatus').value;
+      const serie = document.getElementById('filterSerie').value;
+
+      const url = `/api/leads/export?search=${encodeURIComponent(query)}&status=${encodeURIComponent(status)}&serie=${encodeURIComponent(serie)}`;
+      window.location.href = url;
+    }
+
+    function getStatusBadge(status) {
+      switch(status) {
+        case 'Visita': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">Visita</span>`;
+        case 'Matriculado': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Matriculado</span>`;
+        case 'Novo Lead': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-200">Novo Lead</span>`;
+        default: return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(status)}</span>`;
+      }
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadLeads();
+      }, 300);
+    }
+
+    function openModal() {
+      document.getElementById('leadForm').reset();
+      document.getElementById('leadId').value = '';
+      document.getElementById('modalTitle').innerText = 'Novo Lead';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+
+    function editLead(lead) {
+      document.getElementById('leadId').value = lead.id;
+      document.getElementById('nome_aluno').value = lead.nome_aluno;
+      document.getElementById('nome_resp').value = lead.nome_resp || '';
+      document.getElementById('telefone').value = lead.telefone || '';
+      document.getElementById('serie').value = lead.serie || '';
+      document.getElementById('status').value = lead.status;
+      document.getElementById('modalTitle').innerText = 'Editar Lead';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function viewLead(lead) {
+      const content = `
+        <p><strong>Aluno:</strong> ${escapeHtml(lead.nome_aluno)}</p>
+        <p><strong>Responsável:</strong> ${escapeHtml(lead.nome_resp || 'Não informado')}</p>
+        <p><strong>Telefone:</strong> ${escapeHtml(lead.telefone || 'Não informado')}</p>
+        <p><strong>Série:</strong> ${escapeHtml(lead.serie || 'Não informada')}</p>
+        <p><strong>Status:</strong> ${escapeHtml(lead.status)}</p>
+        <p class="text-xs text-slate-400 mt-2">Data de Cadastro: ${new Date(lead.criado_em).toLocaleString('pt-BR')}</p>
+      `;
+      document.getElementById('viewContent').innerHTML = content;
+      document.getElementById('viewModal').classList.remove('hidden');
+    }
+
+    function closeViewModal() {
+      document.getElementById('viewModal').classList.add('hidden');
+    }
+
+    async function saveLead(e) {
+      e.preventDefault();
+      const id = document.getElementById('leadId').value;
+      const data = {
+        nome_aluno: document.getElementById('nome_aluno').value,
+        nome_resp: document.getElementById('nome_resp').value,
+        telefone: document.getElementById('telefone').value,
+        serie: document.getElementById('serie').value,
+        status: document.getElementById('status').value
+      };
+
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `/api/leads/${id}` : '/api/leads';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        closeModal();
+        loadLeads();
+      } else {
+        alert('Erro ao salvar os dados.');
+      }
+    }
+
+    async function deleteLead(id) {
+      if (confirm('Deseja realmente excluir este cadastro?')) {
+        const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+        if (res.ok) loadLeads();
+      }
+    }
+
+    // Inicialização
+    loadLeads();
+  </script>
+</body>
+</html>
