@@ -50,15 +50,13 @@
     <!-- Busca e Botão de Filtro -->
     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 space-y-4">
       <div class="flex flex-col sm:flex-row gap-3 items-center">
-        
-        <!-- Campo Texto (Nome/Tel) -->
+
         <div class="relative flex-1 w-full">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
           <input type="text" id="searchInput" oninput="debounceSearch()" placeholder="Buscar aluno, resp. ou telefone..." 
                  class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
         </div>
 
-        <!-- Botão para Expandir/Ocultar Filtros -->
         <button onclick="toggleFilterPanel()" id="btnToggleFilter" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-lg transition text-sm flex items-center justify-center gap-2">
           <i class="fa-solid fa-filter"></i> Filtros <span id="filterBadge" class="hidden bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">•</span>
         </button>
@@ -66,20 +64,18 @@
 
       <!-- Painel Retrátil de Filtros -->
       <div id="filterPanel" class="hidden pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        
-        <!-- Filtro por Status -->
+
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrar por Status</label>
           <select id="filterStatus" onchange="loadLeads()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
             <option value="">Todos os Status</option>
-            <option value="Novo Lead">Novo Lead</option>
-            <option value="Visita">Visita</option>
+            <option value="Anuncio">Novo Lead</option>
+            <option value="Visita">Marcou Visita</option>
             <option value="Matriculado">Matriculado</option>
             <option value="Sem Interesse">Sem Interesse</option>
           </select>
         </div>
 
-        <!-- Filtro por Série (Dropdown) -->
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1">Filtrar por Série</label>
           <select id="filterSerie" onchange="loadLeads()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
@@ -123,7 +119,6 @@
             </tr>
           </thead>
           <tbody id="leadTableBody" class="divide-y divide-slate-100 text-sm">
-            <!-- Inserido dinamicamente via JS -->
           </tbody>
         </table>
       </div>
@@ -134,21 +129,19 @@
   <div id="modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-100 relative">
       <h3 id="modalTitle" class="text-xl font-bold text-slate-800 mb-4">Novo Lead</h3>
-      
+
       <form id="leadForm" onsubmit="saveLead(event)" class="space-y-4">
         <input type="hidden" id="leadId">
-        
+
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável *</label>
           <input type="text" id="nome_resp" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Aluno </label>
-          <input type="text" id="nome_aluno"  class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Aluno (Opcional)</label>
+          <input type="text" id="nome_aluno" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
         </div>
-
-        
 
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
@@ -156,7 +149,6 @@
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <!-- Série como Menu Seleção -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">Série (Opcional)</label>
             <select id="serie" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
@@ -181,7 +173,9 @@
             <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
             <select id="status" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
               <option value="Anuncio">Novo Lead</option>
-              <option value="Visita">Marcou Visita</option>                     
+              <option value="Visita">Marcou Visita</option> 
+              <option value="Matriculado">Matriculado</option>
+              <option value="Sem Interesse">Sem Interesse</option>
             </select>
           </div>
         </div>
@@ -225,7 +219,6 @@
         const status = document.getElementById('filterStatus').value;
         const serie = document.getElementById('filterSerie').value;
 
-        // Ativa um indicador visual no botão caso algum filtro esteja selecionado
         const badge = document.getElementById('filterBadge');
         if (status || serie) {
           badge.classList.remove('hidden');
@@ -236,14 +229,14 @@
         const url = `/api/leads?search=${encodeURIComponent(query)}&status=${encodeURIComponent(status)}&serie=${encodeURIComponent(serie)}`;
         const response = await fetch(url);
         const leads = await response.json();
-        
+
         const tbody = document.getElementById('leadTableBody');
         tbody.innerHTML = '';
 
         document.getElementById('counter').innerText = `${leads.length} registro(s) encontrado(s)`;
 
-        if (leads.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400">Nenhum registro encontrado com estes filtros.</td></tr>`;
+        if (!Array.isArray(leads) || leads.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400">Nenhum registro encontrado.</td></tr>`;
           return;
         }
 
@@ -252,7 +245,7 @@
           const row = document.createElement('tr');
           row.className = 'hover:bg-slate-50 transition-colors';
           row.innerHTML = `
-            <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(lead.nome_aluno)}</td>
+            <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(lead.nome_aluno || '-')}</td>
             <td class="py-3 px-4">${escapeHtml(lead.nome_resp || '-')}</td>
             <td class="py-3 px-4 font-mono text-xs">${escapeHtml(lead.telefone || '-')}</td>
             <td class="py-3 px-4">${escapeHtml(lead.serie || '-')}</td>
@@ -265,7 +258,7 @@
                 <button onclick='editLead(${JSON.stringify(lead)})' title="Editar" class="p-1.5 text-slate-500 hover:text-amber-600 rounded">
                   <i class="fa-regular fa-pen-to-square"></i>
                 </button>
-                <button onclick="deleteLead(${lead.id})" title="Excluir" class="p-1.5 text-slate-500 hover:text-red-600 rounded">
+                <button onclick="deleteLead('${lead.id}')" title="Excluir" class="p-1.5 text-slate-500 hover:text-red-600 rounded">
                   <i class="fa-regular fa-trash-can"></i>
                 </button>
               </div>
@@ -289,8 +282,10 @@
 
     function getStatusBadge(status) {
       switch(status) {
-        case 'Visita': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">Visita</span>`;
+        case 'Visita': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">Marcou Visita</span>`;
         case 'Anuncio': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-200">Novo Lead</span>`;
+        case 'Matriculado': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Matriculado</span>`;
+        case 'Sem Interesse': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800 border border-rose-200">Sem Interesse</span>`;
         default: return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(status)}</span>`;
       }
     }
@@ -315,23 +310,23 @@
 
     function editLead(lead) {
       document.getElementById('leadId').value = lead.id;
-      document.getElementById('nome_aluno').value = lead.nome_aluno;
+      document.getElementById('nome_aluno').value = lead.nome_aluno || '';
       document.getElementById('nome_resp').value = lead.nome_resp || '';
       document.getElementById('telefone').value = lead.telefone || '';
       document.getElementById('serie').value = lead.serie || '';
-      document.getElementById('status').value = lead.status;
+      document.getElementById('status').value = lead.status || 'Anuncio';
       document.getElementById('modalTitle').innerText = 'Editar Lead';
       document.getElementById('modal').classList.remove('hidden');
     }
 
     function viewLead(lead) {
       const content = `
-        <p><strong>Aluno:</strong> ${escapeHtml(lead.nome_aluno)}</p>
+        <p><strong>Aluno:</strong> ${escapeHtml(lead.nome_aluno || 'Não informado')}</p>
         <p><strong>Responsável:</strong> ${escapeHtml(lead.nome_resp || 'Não informado')}</p>
         <p><strong>Telefone:</strong> ${escapeHtml(lead.telefone || 'Não informado')}</p>
         <p><strong>Série:</strong> ${escapeHtml(lead.serie || 'Não informada')}</p>
         <p><strong>Status:</strong> ${escapeHtml(lead.status)}</p>
-        <p class="text-xs text-slate-400 mt-2">Data de Cadastro: ${new Date(lead.criado_em).toLocaleString('pt-BR')}</p>
+        <p class="text-xs text-slate-400 mt-2">Data de Cadastro: ${escapeHtml(lead.criado_em)}</p>
       `;
       document.getElementById('viewContent').innerHTML = content;
       document.getElementById('viewModal').classList.remove('hidden');
@@ -355,24 +350,40 @@
       const method = id ? 'PUT' : 'POST';
       const url = id ? `/api/leads/${id}` : '/api/leads';
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
 
-      if (res.ok) {
-        closeModal();
-        loadLeads();
-      } else {
-        alert('Erro ao salvar os dados.');
+        if (res.ok) {
+          closeModal();
+          await loadLeads();
+        } else {
+          const errData = await res.json();
+          alert(errData.error || 'Erro ao salvar os dados.');
+        }
+      } catch (err) {
+        console.error('Erro de conexão ao salvar:', err);
+        alert('Erro de conexão com o servidor.');
       }
     }
 
     async function deleteLead(id) {
+      if (!id) return;
       if (confirm('Deseja realmente excluir este cadastro?')) {
-        const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
-        if (res.ok) loadLeads();
+        try {
+          const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            await loadLeads();
+          } else {
+            alert('Erro ao excluir o registro.');
+          }
+        } catch (err) {
+          console.error('Erro de conexão ao deletar:', err);
+          alert('Erro ao conectar com o servidor.');
+        }
       }
     }
 
