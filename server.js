@@ -10,6 +10,7 @@ const { sheets, SPREADSHEET_ID } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 const SHEET_NAME = 'Página1'; // Nome da aba na planilha
 
 app.use(helmet({ contentSecurityPolicy: false }));
