@@ -10,12 +10,23 @@ const { sheets, SPREADSHEET_ID } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SHEET_NAME = 'Página1'; // Nome exato da aba na sua planilha
+
+// Confia no proxy reverso do Render
 app.set('trust proxy', 1);
-const SHEET_NAME = 'Página1'; // Nome da aba na planilha
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
+
+// Log visual no console para TODAS as requisições recebidas
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  if (req.method === 'POST' || req.method === 'PUT') {
+    console.log('Payload recebido:', req.body);
+  }
+  next();
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -34,16 +45,15 @@ async function getRows() {
   });
   const rows = response.data.values || [];
   
-  // Mapeia linhas do Sheets para Objetos JavaScript com índice (ID)
   return rows.map((row, index) => ({
-    row_number: index + 2, // Linha real no Google Sheets (linha 1 é cabeçalho)
+    row_number: index + 2,
     id: row[0] || (index + 1).toString(),
     nome_aluno: row[1] || '',
     nome_resp: row[2] || '',
     telefone: row[3] || '',
     serie: row[4] || '',
     status: row[5] || 'Novo Lead',
-    criado_em: row[6] || new Date().toISOString()
+    criado_em: row[6] || new Date().toLocaleDateString('pt-BR')
   }));
 }
 
@@ -56,7 +66,6 @@ app.get('/api/leads', async (req, res) => {
 
     let leads = await getRows();
 
-    // Filtros
     if (search) {
       leads = leads.filter(l => 
         l.nome_aluno.toLowerCase().includes(search) ||
@@ -73,13 +82,11 @@ app.get('/api/leads', async (req, res) => {
       leads = leads.filter(l => l.serie.toLowerCase().includes(serieFilter));
     }
 
-    // Ordenar do mais recente para o mais antigo
     leads.reverse();
-
     res.json(leads);
   } catch (err) {
     console.error('Erro ao buscar dados do Google Sheets:', err);
-    res.status(500).json({ error: 'Erro ao buscar dados na planilha.' });
+    res.status(500).json({ error: 'Erro ao buscar dados na planilha.', details: err.message });
   }
 });
 
@@ -97,30 +104,31 @@ app.get('/api/leads/export', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="relatorio_leads.csv"');
     res.status(200).send('\uFEFF' + csv);
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao exportar CSV:', err);
     res.status(500).send('Erro ao exportar dados.');
   }
 });
 
-// 3. Cadastrar Lead (Nova Linha no Google Sheets)
-app.post('/api/leads', [
-  body('nome_aluno').trim().notEmpty().escape(),
-  body('nome_resp').optional().trim().escape(),
-  body('telefone').optional().trim().escape(),
-  body('serie').optional().trim().escape(),
-  body('status').optional().escape()
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
+// 3. Cadastrar Lead
+app.post('/api/leads', async (req, res) => {
   try {
-    const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
+    // Aceita nomes de atributos em snake_case ou camelCase vindos do frontend
+    const nome_aluno = req.body.nome_aluno || req.body.nomeAluno || req.body.nome;
+    const nome_resp = req.body.nome_resp || req.body.nomeResp || req.body.responsavel;
+    const telefone = req.body.telefone || req.body.celular;
+    const serie = req.body.serie || req.body.turma;
+    const status = req.body.status || 'Novo Lead';
+
+    if (!nome_aluno) {
+      console.warn('Tentativa de cadastro sem nome do aluno. Body recebido:', req.body);
+      return res.status(400).json({ error: 'O nome do aluno é obrigatório.' });
+    }
+
     const leads = await getRows();
-    
     const newId = (leads.length + 1).toString();
     const dataCriacao = new Date().toLocaleDateString('pt-BR');
 
-    const newRow = [newId, nome_aluno, nome_resp || '', telefone || '', serie || '', status || 'Novo Lead', dataCriacao];
+    const newRow = [newId, nome_aluno, nome_resp || '', telefone || '', serie || '', status, dataCriacao];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -129,18 +137,23 @@ app.post('/api/leads', [
       resource: { values: [newRow] },
     });
 
+    console.log(`Lead #${newId} cadastrado com sucesso!`);
     res.status(201).json({ id: newId, message: 'Lead cadastrado com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir no Google Sheets:', err);
-    res.status(500).json({ error: 'Erro ao cadastrar lead.' });
+    res.status(500).json({ error: 'Erro ao cadastrar lead no Google Sheets.', details: err.message });
   }
 });
 
-// 4. Atualizar Lead (Editar Linha no Google Sheets)
+// 4. Atualizar Lead
 app.put('/api/leads/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
+    const nome_aluno = req.body.nome_aluno || req.body.nomeAluno || req.body.nome;
+    const nome_resp = req.body.nome_resp || req.body.nomeResp || req.body.responsavel;
+    const telefone = req.body.telefone || req.body.celular;
+    const serie = req.body.serie || req.body.turma;
+    const status = req.body.status || 'Novo Lead';
 
     const leads = await getRows();
     const targetLead = leads.find(l => l.id === id);
@@ -149,11 +162,11 @@ app.put('/api/leads/:id', async (req, res) => {
 
     const updatedRow = [
       id,
-      nome_aluno,
-      nome_resp || '',
-      telefone || '',
-      serie || '',
-      status || 'Novo Lead',
+      nome_aluno || targetLead.nome_aluno,
+      nome_resp !== undefined ? nome_resp : targetLead.nome_resp,
+      telefone !== undefined ? telefone : targetLead.telefone,
+      serie !== undefined ? serie : targetLead.serie,
+      status || targetLead.status,
       targetLead.criado_em
     ];
 
@@ -167,11 +180,11 @@ app.put('/api/leads/:id', async (req, res) => {
     res.json({ message: 'Lead atualizado com sucesso!' });
   } catch (err) {
     console.error('Erro ao atualizar no Google Sheets:', err);
-    res.status(500).json({ error: 'Erro ao atualizar lead.' });
+    res.status(500).json({ error: 'Erro ao atualizar lead.', details: err.message });
   }
 });
 
-// 5. Excluir Lead (Limpar Linha no Google Sheets)
+// 5. Excluir Lead
 app.delete('/api/leads/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -180,7 +193,6 @@ app.delete('/api/leads/:id', async (req, res) => {
 
     if (!targetLead) return res.status(404).json({ error: 'Lead não encontrado.' });
 
-    // Limpa o conteúdo das células da linha
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A${targetLead.row_number}:G${targetLead.row_number}`,
@@ -189,8 +201,14 @@ app.delete('/api/leads/:id', async (req, res) => {
     res.json({ message: 'Lead removido com sucesso!' });
   } catch (err) {
     console.error('Erro ao deletar no Google Sheets:', err);
-    res.status(500).json({ error: 'Erro ao excluir lead.' });
+    res.status(500).json({ error: 'Erro ao excluir lead.', details: err.message });
   }
+});
+
+// Middleware Global de Captura de Erros
+app.use((err, req, res, next) => {
+  console.error('ERRO NÃO TRATADO NO EXPRESS:', err);
+  res.status(500).json({ error: 'Erro interno no servidor.', details: err.message });
 });
 
 app.listen(PORT, () => {
