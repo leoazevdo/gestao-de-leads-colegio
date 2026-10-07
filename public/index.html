@@ -180,10 +180,8 @@
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
             <select id="status" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none text-slate-700">
-              <option value="Novo Lead">Novo Lead</option>
-              <option value="Visita">Visita</option>
-              <option value="Matriculado">Matriculado</option>
-              <option value="Sem Interesse">Sem Interesse</option>
+              <option value="Anuncio">Novo Lead</option>
+              <option value="Visita">Marcou Visita</option>                     
             </select>
           </div>
         </div>
@@ -292,8 +290,7 @@
     function getStatusBadge(status) {
       switch(status) {
         case 'Visita': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">Visita</span>`;
-        case 'Matriculado': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Matriculado</span>`;
-        case 'Novo Lead': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-200">Novo Lead</span>`;
+        case 'Anuncio': return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-200">Novo Lead</span>`;
         default: return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200">${escapeHtml(status)}</span>`;
       }
     }

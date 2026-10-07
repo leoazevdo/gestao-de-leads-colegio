@@ -13,8 +13,8 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
     "express-validator": "^7.0.1",
-    "helmet": "^7.1.0",
-    "pg": "^8.23.0"
+    "googleapis": "^183.0.0",
+    "helmet": "^7.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

@@ -6,10 +6,11 @@ const { body, query, validationResult } = require('express-validator');
 const path = require('path');
 require('dotenv').config();
 
-const pool = require('./database');
+const { sheets, SPREADSHEET_ID } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SHEET_NAME = 'Página1'; // Nome da aba na planilha
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
@@ -18,84 +19,77 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
-  message: { error: 'Muitas requisições originadas deste IP. Tente novamente mais tarde.' }
+  message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
 });
 app.use('/api/', limiter);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. Listar e Filtrar Leads (Busca + Status + Série)
-app.get('/api/leads', [
-  query('search').optional().trim().escape(),
-  query('status').optional().trim().escape(),
-  query('serie').optional().trim().escape()
-], async (req, res) => {
-  const search = req.query.search || '';
-  const statusFilter = req.query.status || '';
-  const serieFilter = req.query.serie || '';
+// Função Auxiliar para ler todas as linhas da planilha
+async function getRows() {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SHEET_NAME}!A2:G`,
+  });
+  const rows = response.data.values || [];
+  
+  // Mapeia linhas do Sheets para Objetos JavaScript com índice (ID)
+  return rows.map((row, index) => ({
+    row_number: index + 2, // Linha real no Google Sheets (linha 1 é cabeçalho)
+    id: row[0] || (index + 1).toString(),
+    nome_aluno: row[1] || '',
+    nome_resp: row[2] || '',
+    telefone: row[3] || '',
+    serie: row[4] || '',
+    status: row[5] || 'Novo Lead',
+    criado_em: row[6] || new Date().toISOString()
+  }));
+}
 
-  let sql = `SELECT * FROM leads WHERE (nome_resp ILIKE $1 OR nome_aluno ILIKE $1 OR telefone ILIKE $1)`;
-  let params = [`%${search}%`];
-  let paramIdx = 2;
-
-  if (statusFilter) {
-    sql += ` AND status = $${paramIdx}`;
-    params.push(statusFilter);
-    paramIdx++;
-  }
-
-  if (serieFilter) {
-    sql += ` AND serie ILIKE $${paramIdx}`;
-    params.push(`%${serieFilter}%`);
-    paramIdx++;
-  }
-
-  sql += ` ORDER BY id DESC`;
-
+// 1. Listar e Filtrar Leads
+app.get('/api/leads', async (req, res) => {
   try {
-    const result = await pool.query(sql, params);
-    res.json(result.rows);
+    const search = (req.query.search || '').toLowerCase();
+    const statusFilter = req.query.status || '';
+    const serieFilter = (req.query.serie || '').toLowerCase();
+
+    let leads = await getRows();
+
+    // Filtros
+    if (search) {
+      leads = leads.filter(l => 
+        l.nome_aluno.toLowerCase().includes(search) ||
+        l.nome_resp.toLowerCase().includes(search) ||
+        l.telefone.toLowerCase().includes(search)
+      );
+    }
+
+    if (statusFilter) {
+      leads = leads.filter(l => l.status === statusFilter);
+    }
+
+    if (serieFilter) {
+      leads = leads.filter(l => l.serie.toLowerCase().includes(serieFilter));
+    }
+
+    // Ordenar do mais recente para o mais antigo
+    leads.reverse();
+
+    res.json(leads);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erro ao buscar dados.' });
+    console.error('Erro ao buscar dados do Google Sheets:', err);
+    res.status(500).json({ error: 'Erro ao buscar dados na planilha.' });
   }
 });
 
-// 2. Exportar Leads para CSV
-app.get('/api/leads/export', [
-  query('search').optional().trim().escape(),
-  query('status').optional().trim().escape(),
-  query('serie').optional().trim().escape()
-], async (req, res) => {
-  const search = req.query.search || '';
-  const statusFilter = req.query.status || '';
-  const serieFilter = req.query.serie || '';
-
-  let sql = `SELECT id, nome_aluno, nome_resp, telefone, serie, status, criado_em FROM leads WHERE (nome_resp ILIKE $1 OR nome_aluno ILIKE $1 OR telefone ILIKE $1)`;
-  let params = [`%${search}%`];
-  let paramIdx = 2;
-
-  if (statusFilter) {
-    sql += ` AND status = $${paramIdx}`;
-    params.push(statusFilter);
-    paramIdx++;
-  }
-
-  if (serieFilter) {
-    sql += ` AND serie ILIKE $${paramIdx}`;
-    params.push(`%${serieFilter}%`);
-    paramIdx++;
-  }
-
-  sql += ` ORDER BY id DESC`;
-
+// 2. Exportar CSV
+app.get('/api/leads/export', async (req, res) => {
   try {
-    const result = await pool.query(sql, params);
+    let leads = await getRows();
     let csv = 'ID;Nome do Aluno;Nome do Responsável;Telefone;Série;Status;Data Cadastro\n';
 
-    result.rows.forEach(row => {
-      const dataFormatada = new Date(row.criado_em).toLocaleDateString('pt-BR');
-      csv += `"${row.id}";"${row.nome_aluno || ''}";"${row.nome_resp || ''}";"${row.telefone || ''}";"${row.serie || ''}";"${row.status || ''}";"${dataFormatada}"\n`;
+    leads.reverse().forEach(row => {
+      csv += `"${row.id}";"${row.nome_aluno}";"${row.nome_resp}";"${row.telefone}";"${row.serie}";"${row.status}";"${row.criado_em}"\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -107,69 +101,97 @@ app.get('/api/leads/export', [
   }
 });
 
-// 3. Cadastrar Lead
+// 3. Cadastrar Lead (Nova Linha no Google Sheets)
 app.post('/api/leads', [
-  body('nome_aluno').trim().notEmpty().withMessage('Nome do aluno é obrigatório.').escape(),
-  body('nome_resp').optional().trim().escape(),
-  body('telefone').optional().trim().escape(),
-  body('serie').optional().trim().escape(),
-  body('status').optional().isIn(['Visita', 'Matriculado', 'Novo Lead', 'Sem Interesse'])
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
-  const sql = `INSERT INTO leads (nome_resp, nome_aluno, telefone, serie, status) VALUES ($1, $2, $3, $4, $5) RETURNING id`;
-
-  try {
-    const result = await pool.query(sql, [nome_resp || '', nome_aluno, telefone || '', serie || '', status || 'Novo Lead']);
-    res.status(201).json({ id: result.rows[0].id, message: 'Lead cadastrado com sucesso!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erro ao cadastrar lead.' });
-  }
-});
-
-// 4. Atualizar Lead
-app.put('/api/leads/:id', [
   body('nome_aluno').trim().notEmpty().escape(),
   body('nome_resp').optional().trim().escape(),
   body('telefone').optional().trim().escape(),
   body('serie').optional().trim().escape(),
-  body('status').optional().isIn(['Visita', 'Matriculado', 'Novo Lead', 'Sem Interesse'])
+  body('status').optional().escape()
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  const { id } = req.params;
-  const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
-  const sql = `UPDATE leads SET nome_resp = $1, nome_aluno = $2, telefone = $3, serie = $4, status = $5 WHERE id = $6`;
-
   try {
-    const result = await pool.query(sql, [nome_resp || '', nome_aluno, telefone || '', serie || '', status || 'Novo Lead', id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Lead não encontrado.' });
+    const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
+    const leads = await getRows();
+    
+    const newId = (leads.length + 1).toString();
+    const dataCriacao = new Date().toLocaleDateString('pt-BR');
+
+    const newRow = [newId, nome_aluno, nome_resp || '', telefone || '', serie || '', status || 'Novo Lead', dataCriacao];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A:G`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [newRow] },
+    });
+
+    res.status(201).json({ id: newId, message: 'Lead cadastrado com sucesso!' });
+  } catch (err) {
+    console.error('Erro ao inserir no Google Sheets:', err);
+    res.status(500).json({ error: 'Erro ao cadastrar lead.' });
+  }
+});
+
+// 4. Atualizar Lead (Editar Linha no Google Sheets)
+app.put('/api/leads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome_resp, nome_aluno, telefone, serie, status } = req.body;
+
+    const leads = await getRows();
+    const targetLead = leads.find(l => l.id === id);
+
+    if (!targetLead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+    const updatedRow = [
+      id,
+      nome_aluno,
+      nome_resp || '',
+      telefone || '',
+      serie || '',
+      status || 'Novo Lead',
+      targetLead.criado_em
+    ];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${targetLead.row_number}:G${targetLead.row_number}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [updatedRow] },
+    });
+
     res.json({ message: 'Lead atualizado com sucesso!' });
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao atualizar no Google Sheets:', err);
     res.status(500).json({ error: 'Erro ao atualizar lead.' });
   }
 });
 
-// 5. Excluir Lead
+// 5. Excluir Lead (Limpar Linha no Google Sheets)
 app.delete('/api/leads/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const result = await pool.query(`DELETE FROM leads WHERE id = $1`, [id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Lead não encontrado.' });
+    const { id } = req.params;
+    const leads = await getRows();
+    const targetLead = leads.find(l => l.id === id);
+
+    if (!targetLead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+    // Limpa o conteúdo das células da linha
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${targetLead.row_number}:G${targetLead.row_number}`,
+    });
+
     res.json({ message: 'Lead removido com sucesso!' });
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao deletar no Google Sheets:', err);
     res.status(500).json({ error: 'Erro ao excluir lead.' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
